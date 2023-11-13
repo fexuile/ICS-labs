@@ -1,0 +1,58 @@
+# 郭劲豪 2200013146@stu.pku.edu.cn
+# Execution begins at address 0 
+	.pos 0
+	irmovq stack, %rsp  	# Set up stack pointer
+	call main		# Execute main program
+	halt			# Terminate program 
+
+# Sample Linked list
+.align 8
+Array:
+    .quad 0xbca
+    .quad 0xcba
+    .quad 0xacb
+    .quad 0xcab
+    .quad 0xabc
+    .quad 0xbac
+
+main: 
+	irmovq Array,%rdi
+    irmovq $6,%rsi
+	call bubble_sort
+	ret
+
+# void bubble_sort(long *data, long count)
+# data in %rdi, count in %rsi
+bubble_sort:
+    irmovq $8,%r11      # Constant 8
+    irmovq $1,%r14      # Constant 1
+    rrmovq %rsi,%r8
+    subq %r14,%r8
+    addq %r8,%r8
+    addq %r8,%r8
+    addq %r8,%r8    # %r8 = 8 * (count - 1)
+    addq %rdi,%r8
+loop1:
+    rrmovq %rdi,%r9
+loop2:
+    mrmovq 0x8(%r9),%r12
+    mrmovq (%r9),%r13
+    subq %r12,%r13
+    jle next
+    mrmovq 0x8(%r9),%r12
+    mrmovq (%r9),%r13
+    rmmovq %r13,0x8(%r9)
+    rmmovq %r12,(%r9)
+next:
+    addq %r11,%r9         # i++
+    rrmovq %r9,%r10
+    subq %r8,%r10
+    jle loop2
+    rrmovq %r8,%r10
+    subq %rdi,%r10
+    jge loop1
+
+    ret                   # Return
+# Stack starts here and grows to lower addresses
+	.pos 0x200
+stack:

@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../y86-code"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../seq"
+		}
+	],
+	"settings": {}
+}
