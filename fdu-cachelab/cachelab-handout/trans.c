@@ -1,4 +1,4 @@
-/* 
+/* 周平川 22307110306@m.fudan.edu.cn
  * trans.c - Matrix transpose B = A^T
  *
  * Each transpose function must have a prototype of the form:
@@ -22,6 +22,54 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+    if(M == 32 && N == 32)
+    {
+        int i, j, k;
+        for(i = 0; i < N; i += 8)
+            for(j = 0; j < M; j += 8)
+                for(k = i; k < i + 8; k++)
+                {
+                    int a1, a2, a3, a4, a5, a6, a7, a8;
+                    a1 = A[k][j];
+                    a2 = A[k][j + 1];
+                    a3 = A[k][j + 2];
+                    a4 = A[k][j + 3];
+                    a5 = A[k][j + 4];
+                    a6 = A[k][j + 5];
+                    a7 = A[k][j + 6];
+                    a8 = A[k][j + 7];
+                    B[j][k] = a1;
+                    B[j + 1][k] = a2;
+                    B[j + 2][k] = a3;
+                    B[j + 3][k] = a4;
+                    B[j + 4][k] = a5;
+                    B[j + 5][k] = a6;
+                    B[j + 6][k] = a7;
+                    B[j + 7][k] = a8;
+                }
+    }
+    else if(M == 64 && N == 64)
+    {
+        int i, j, k;
+        for(i = 0; i < N; i += 4)
+            for(j = 0; j < M; j += 4)
+                for(k = i; k < i + 4; k++)
+                {
+                    int a1, a2, a3, a4;
+                    a1 = A[k][j];
+                    a2 = A[k][j + 1];
+                    a3 = A[k][j + 2];
+                    a4 = A[k][j + 3];
+                    B[j][k] = a1;
+                    B[j + 1][k] = a2;
+                    B[j + 2][k] = a3;
+                    B[j + 3][k] = a4;
+                }
+    }
+    else if(M == 61 && N == 67)
+    {
+
+    }
 }
 
 /* 
