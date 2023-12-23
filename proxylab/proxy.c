@@ -1,3 +1,6 @@
+/*
+郭劲豪 2200013146@stu.pku.edu.cn
+*/
 #include "csapp.h"
 
 /* Recommended max cache and object sizes */
@@ -7,19 +10,24 @@
 
 int max(int a, int b) { return a>b?a:b; }
 
+/*
+A struct designed for cache implement. sem_t for avoiding races.
+*/
 struct block{
     char buf[MAX_OBJECT_SIZE];
     char uri[MAXLINE];
     int Time;
     int len;
+    sem_t mutex, w;
+    int readcnt;
 }cache[MAX_CACHE_NUM];
-
-sem_t mutex, w;
-int readcnt = 0;
 
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n";
 
+/*
+get max time and min time index, preparing for the lru.
+*/
 int getmaxtime() {
     int Time = 0;
     for(int i = 0; i < MAX_CACHE_NUM; i++) 
@@ -27,50 +35,62 @@ int getmaxtime() {
     return Time;
 }
 int gettime() {
-    int Time = cache[0].Time, index = 0;
+    int index = 0;
     for(int i = 1; i < MAX_CACHE_NUM; i++) 
-        if (Time > cache[i].Time) {
-            Time = cache[i].Time;
+        if (cache[index].Time > cache[i].Time) 
             index = i;
-        }
     return index;
 }
 
+/*
+reader & writer is a easy function for read data and write data to the cache.
+*/
 void writer(char *buf, char *uri, int size) {
     int index;
-    P(&w);
     index = gettime();
+    P(&cache[index].w);
     cache[index].Time = getmaxtime() + 1;
     strcpy(cache[index].uri, uri);
     memcpy(cache[index].buf, buf, size);
     cache[index].len = size;
-    V(&w);
+    V(&cache[index].w);
     return;
 }
 
+/*
+carefully to use P and V functions to modify the data in cache. Otherwise the race will occur.
+*/
 char *reader(char *uri, int *len) {
-    P(&mutex);
-    readcnt++;
-    if (readcnt == 1) P(&w);
-    V(&mutex);
     char *buf = NULL;
-    for (int i = 0; i < MAX_CACHE_NUM; i++) 
+    for (int i = 0; i < MAX_CACHE_NUM; i++) {
+        P(&cache[i].mutex);
+        cache[i].readcnt++;
+        if (cache[i].readcnt == 1) P(&cache[i].w);
+        V(&cache[i].mutex);
         if (!strcmp(uri, cache[i].uri)) {
             buf = (char *)Malloc(cache[i].len);
             memcpy(buf, cache[i].buf, cache[i].len);
             int Time = getmaxtime();
             cache[i].Time = Time + 1;
             *len = cache[i].len;
+            P(&cache[i].mutex);
+            cache[i].readcnt--;
+            if (!cache[i].readcnt) V(&cache[i].w);
+            V(&cache[i].mutex);
             break;
         }
-
-    P(&mutex);
-    readcnt--;
-    if (!readcnt) V(&w);
-    V(&mutex);
+        P(&cache[i].mutex);
+        cache[i].readcnt--;
+        if (!cache[i].readcnt) V(&cache[i].w);
+        V(&cache[i].mutex);
+    }
     return buf;
 }
 
+
+/*
+parseline the url, spliting it into three part, and output the request_head.
+*/
 void parse_url(char *uri, char *hostname, char *path, char *port, char *request_head) {
     char *end, *st;
     sprintf(port, "80");
@@ -94,6 +114,9 @@ void parse_url(char *uri, char *hostname, char *path, char *port, char *request_
     sprintf(request_head, "GET %s HTTP/1.0\r\nHost: %s\r\n", path, hostname);
 }
 
+/*
+output other request that unchanged.
+*/
 void printRequestHeader(rio_t *rio, int fd) {
     char buf[MAXLINE];
     sprintf(buf, "%s", user_agent_hdr);
@@ -113,6 +136,10 @@ void printRequestHeader(rio_t *rio, int fd) {
     }while (strcmp(buf, "\r\n"));
 }
 
+
+/*
+Attention: use readnb to read binary file and ASCII file as well.
+*/
 void writeback(int clientfd, int serverfd, char *uri) {
     char buf[MAXLINE], cache_buf[MAX_OBJECT_SIZE];
     rio_t rio;
@@ -127,6 +154,10 @@ void writeback(int clientfd, int serverfd, char *uri) {
     if (size <= MAX_OBJECT_SIZE) writer(cache_buf, uri, size);
 }
 
+/*
+if fd < 0 :then return ( increase robust )
+Use RIO functions to increase robust.
+*/
 void doit(int fd) {
     rio_t rio;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
@@ -179,10 +210,15 @@ int main(int argc, char *argv[]) {
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
 
+/*
+initalizing the cache and ignore SIGPIPE signal.
+*/
     signal(SIGPIPE, SIG_IGN);
-    readcnt = 0;
-    sem_init(&mutex, 0, 1);
-    sem_init(&w, 0, 1);
+    for (int i = 0; i < MAX_CACHE_NUM; i++) {
+        cache[i].readcnt = 0;
+        sem_init(&cache[i].mutex, 0, 1);
+        sem_init(&cache[i].w, 0, 1);
+    }
 
     if (argc != 2) {
 	    fprintf(stderr, "usage: %s <port>\n", argv[0]);
