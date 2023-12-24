@@ -91,27 +91,30 @@ char *reader(char *uri, int *len) {
 /*
 parseline the url, spliting it into three part, and output the request_head.
 */
-void parse_url(char *uri, char *hostname, char *path, char *port, char *request_head) {
-    char *end, *st;
+int parse_url(char *uri, char *hostname, char *path, char *port, char *request_head) {
+    char *end, *st, *End;
+    End = uri + strlen(uri);
     sprintf(port, "80");
     st = strstr(uri, "//");
     if (st) st += 2;
     else st = uri;
     end = st;
-    while (*end != ':' && *end != '/') end++;
+    while (*end != ':' && *end != '/' && end < End) end++;
+    if(end == End) return -1;
     strncpy(hostname, st, end - st);
     hostname[end-st] = '\0';
     if (*end == ':') {
         st = end + 1; 
         end = strstr(end, "/");
+        if (end == NULL) return -1;
         strncpy(port, st, end - st);
         port[end - st] = '\0';
         st = end;
     }
-    end = uri + strlen(uri);
-    strncpy(path, st, end - st);
-    path[end-st] = '\0';
+    strncpy(path, st, End - st);
+    path[End-st] = '\0';
     sprintf(request_head, "GET %s HTTP/1.0\r\nHost: %s\r\n", path, hostname);
+    return 1;
 }
 
 /*
@@ -181,7 +184,13 @@ void doit(int fd) {
         Free(cache_buf);
         return;
     }
-    parse_url(uri, hostname, path, port, request_head);
+    /*
+    robust of uri format, return -1 if illegal.
+    */
+    if (parse_url(uri, hostname, path, port, request_head) < 0){ 
+        printf("Uri format error\n");
+        return;
+    }
     serverfd = Open_clientfd(hostname, port);
     if (serverfd < 0){
         return;
@@ -197,8 +206,8 @@ void *thread(void *vargp) {
     int connfd = *(int *)(vargp);
     pthread_detach(pthread_self());
     free(vargp);
-	doit(connfd);
-	Close(connfd);
+    doit(connfd);
+    Close(connfd);
     return NULL;
 }
 
@@ -221,14 +230,14 @@ initalizing the cache and ignore SIGPIPE signal.
     }
 
     if (argc != 2) {
-	    fprintf(stderr, "usage: %s <port>\n", argv[0]);
-	    exit(1);
+        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        exit(1);
     }
     listenfd = Open_listenfd(argv[1]);
     while(1) {
         clientlen = sizeof(clientaddr);
         connfd = (int *)Malloc(sizeof(int));
-	    *connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+        *connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
         Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
         Pthread_create(&tid, NULL, thread, connfd);
     }
